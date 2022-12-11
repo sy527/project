@@ -64,7 +64,7 @@ Below codes is a sample of how the API is accessed through the Washington Post g
 
 ```{r, eval = FALSE}
 library(tidyverse)
-setwd("/Users/sunyoon/Desktop/myrepo/data")
+setwd("/Users/sunyoon/Desktop/project/data")
 
 # looping through states for 2013 and 2014 (no "ri" state)
 st <- c("al", "ak","ar","az","ca","co","ct","dc", "de","fl","ga","hi","ia","id","il",
@@ -147,7 +147,7 @@ library(corrplot)
 
 
 ```{r, include = FALSE}
-setwd("/Users/sunyoon/Desktop/myrepo/")
+setwd("/Users/sunyoon/Desktop/project/")
 load("cleandata/arcos1314_set.RData")
 
 #clean up the names of the manufacturer/distributor.
