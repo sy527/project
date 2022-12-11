@@ -47,6 +47,8 @@ references:
 
 ---
 
+Github: https://github.com/sy527/project
+
 ## Introduction
 
 Opioid comes in different forms, and of commonly used types are morphine, hydromorphone, fentanyl, oxycodone, meperidine, hydrocodone, and codeine [@LiverTox2020]. The most commonly prescribed medicine of opioid is called OxyContin (derived from oxycodone), which is a controlled-released medication that relieves pain of cancer, pack pain, or arthritis. Long-term effects of using OxyContin are increased tolerance to the drug, as well as physically addictive effect. Withdrawal of the drug has similar symptoms that of heroin [@Narconon2017].
@@ -331,4 +333,4 @@ The opioid epidemic has been a serious public health emergency, which has affect
 
 Limitations to this analysis include lack of recent data. The Washington Post was only able to produce data from 2009 to 2014, which may limit the full picture of the current opioid distribution status. Another limitation is that this analysis only explores basic descriptives. Further analysis may explain the phenomena of the opioid distribution. 
 
-
+## Reference
