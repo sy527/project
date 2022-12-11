@@ -290,12 +290,12 @@ ca1 <- left_join(ca1, ca_zip, by = c('BUYER_ZIP' = 'zipcode')) %>%
 qmplot(lng, lat, data = ca1, maptype = "toner-lite", size = I(0.5), alpha = I(0.45), color = mme.percapita)
 ```
 
-Seems like buyers are clustered in certain areas. `fviz_nbclust()` takes a very long time, so I won't use that function to find the optimal number of clusters. Instead, I will do 4 clusters. 
+Seems like buyers are clustered in certain areas. `fviz_nbclust()` takes a very long time, so I won't use that function to find the optimal number of clusters. Instead, I will make 5 clusters. 
 
 ```{r, results = F}
 
-ca_data <- ca %>%
-  select(longitude_b, latitude_b) %>%
+ca_data <- ca1 %>%
+  select(lng, lat) %>%
   na.omit()
 
 # fviz_nbclust(ca_data, #data set we want to use
@@ -312,7 +312,7 @@ Given the clusters, I will plot them
 
 ca_data %>%
   na.omit() %>%
-  qmplot(longitude_b, latitude_b, data = ., maptype = "toner-lite", size = I(0.75), alpha = I(0.75), color = as.factor(km_1$cluster))
+  qmplot(lng, lat, data = ., maptype = "toner-lite", size = I(0.75), alpha = I(0.75), color = as.factor(km_1$cluster))
   
 
 ```
