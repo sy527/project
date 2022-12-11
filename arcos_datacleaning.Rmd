@@ -1,0 +1,334 @@
+---
+title: "Opioid Distribution Exploration"
+author: "SunJung Yoon"
+date: "`r Sys.Date()`"
+output: html_document
+references:
+- id: LiverTox2020
+  title: Clinical and Research Information on Drug-Induced Livery Injury
+  author:
+  - family: Livertox
+  container-title: National Institute of Diabetes and Digestive and Kidney Diseases Opioids
+  type: article-journal
+  issued:
+    year: 2020
+- id: Narconon2017
+  title: OxyContin Information
+  author:
+  - family: Narconon
+  type: website
+  publisher: Narconon International
+  issued:
+    year: 2017
+- id: mmwr2022
+  title: CDC Clinical Practice Guideline for Prescribing Opioids for Pain — United States
+  author:
+  - family: MMWR Recomm Rep
+  type: journal
+  publisher: MMWR
+  issued:
+    year: 2022
+- id: hhs2021
+  title: The Opioid Epidemic by the Numbers
+  author:
+  - family: The U.S. Department of Health and Human Services
+  type: website
+  publisher: HHS
+  issued:
+    year: 2021
+- id: dowell2016
+  title: CDC Guideline for Prescribing Opioids for Chronic Pain — United States
+  author:
+  - family: MMWR Recomm Rep
+  type: journal
+  publisher: HHS
+  issued:
+    year: 2021    
+
+---
+
+## Introduction
+
+Opioid comes in different forms, and of commonly used types are morphine, hydromorphone, fentanyl, oxycodone, meperidine, hydrocodone, and codeine [@LiverTox2020]. The most commonly prescribed medicine of opioid is called OxyContin (derived from oxycodone), which is a controlled-released medication that relieves pain of cancer, pack pain, or arthritis. Long-term effects of using OxyContin are increased tolerance to the drug, as well as physically addictive effect. Withdrawal of the drug has similar symptoms that of heroin [@Narconon2017].
+
+Due to its highly addictive chemical substances, opioid prescription that were primarily used to treat patients with severe chronic pain, now is responsible for overdose deaths. The now national health crisis, deaths from any opioid overdose accounts for at least 500,000 from 1999 to 2019 [@mmwr2022]. 
+
+My motivation for doing opioid research stems from the devastating effect the opioid epidemic has on American citizens. About 10.1 million people misused prescription opioids and about 70,000 people died from drug overdose in 2019 alone [@hhs2021]. This paper explores opioid distribution data to see where the prescribed drugs were bought, and see if there was a correlation between county-level characteristics and drug concentration. 
+
+## Data
+
+The supply information of opioids is provided in the Automated Reports and Consolidated Ordering System (ARCOS) data. In 2018, Ohio federal court ordered the Drug Enforcement Administration (DEA) to release raw detailed transactional data of ARCOS for the period of January 1, 2006, through December 31, 2014 (Case No. 1:17-MD-2804, 2018). The legal battle between drug manufacturers and the public communities shed a light on where opioids are flowing on a granular level (Washington Post, 2019). The data is on a single shipment record level, displaying oxycodone and hydrocodone transactions from any distributing entity to any purchasing facility. ARCOS is a comprehensive drug reporting system which monitors controlled substances in the United States. The manufacturers and distribution centers include commercial distribution channels to point of sale at the dispensing or retail level such as hospitals, pharmacies, practitioners, and others. The main focus of the paper is on hydrocodone and oxycodone purchasing activities from 2013 to 2014, analyzing from the buyers' perspective. Opioid strength was converted to morphine milligram equivalent (MME), representing the potency of a dose relative to morphine (Dowell et al., 2016). 
+
+Below codes is a sample of how the API is accessed through the Washington Post github. After extracting the 2013 and 2014 data, I have linked the purchasers' addresses to longitude and latitude for mapping analysis. 
+
+
+```{r, eval = FALSE}
+library(tidyverse)
+setwd("/Users/sunyoon/Desktop/myrepo/data")
+
+# looping through states for 2013 and 2014 (no "ri" state)
+st <- c("al", "ak","ar","az","ca","co","ct","dc", "de","fl","ga","hi","ia","id","il",
+        "in","ks","ky","la","ma", "md","me","mi","mn","mo","ms","mt","nc",
+        "nd","nh","ne","nj","nm","nv","ny","oh","ok","or","pa")
+
+allcomb <- paste0("https://www.washingtonpost.com/wp-stat/dea-pain-pill-database/summary/arcos-",st,"-statewide-itemized.csv.gz")
+
+lapply(allcomb, function(x) download.file(x, destfile=basename(x)))
+
+# break it apart into smaller states 
+st2 <- c("ri","sc","sd","tn","tx","ut","va","vt","wa","wi","wv","wy")
+allcomb <- paste0("https://www.washingtonpost.com/wp-stat/dea-pain-pill-database/summary/arcos-",st2,"-statewide-itemized.csv.gz")
+
+lapply(allcomb, function(x) download.file(x, destfile=basename(x)))
+
+
+##### APPENDING ALL CSV FILES
+library(R.utils)
+library(data.table)
+library(lubridate)
+
+arcos.names <- list.files("data/", pattern = "*.csv.gz", full.names = TRUE)
+
+files.county <- lapply(arcos.names, function(x) {
+  t <- fread(x) %>%
+    mutate(year = format(mdy(TRANSACTION_DATE), format="%Y")) %>%
+    filter(year >=2013 & BUYER_BUS_ACT=="PRACTITIONER")
+})
+
+df <- lapply(files.county, function(df) {
+  df2 <- df %>%
+    mutate(NDC_NO=as.character(NDC_NO))
+  
+})
+
+# append all files in the list
+append_p1 <- data.table::rbindlist(df, use.names = TRUE)
+
+# mutate reporter address
+append_p1$rep_address <- paste(append_p1$REPORTER_ADDRESS1, append_p1$REPORTER_COUNTY, append_p1$REPORTER_STATE, as.character(append_p1$REPORTER_ZIP), sep = ", ")
+
+# mutate buyer address
+append_p1$buy_address <- paste(append_p1$BUYER_ADDRESS1, append_p1$BUYER_COUNTY, append_p1$BUYER_STATE, as.character(append_p1$BUYER_ZIP), sep = ", ")
+
+# trying to go free way
+# install.packages("tidygeocoder")
+# https://cran.r-project.org/web/packages/tidygeocoder/readme/README.html
+library(tidygeocoder)
+
+lat_longs <- append_p1 %>%
+  select(rep_address) %>%
+  unique() %>%
+  geocode(rep_address, method = 'osm', lat = latitude, long = longitude)
+
+lat_longs_buyer <- append_p1 %>%
+  filter(year == "2014" & BUYER_STATE == "CA") %>%
+  select(buy_address) %>%
+  unique() %>%
+  geocode(buy_address, method = 'osm', lat = latitude_b, long = longitude_b)
+
+append_p1 <- left_join(append_p1, lat_longs, by = "rep_address")
+append_p1 <- left_join(append_p1, lat_longs_buyer, by = "buy_address")
+
+save(append_p1, file="cleandata/arcos1314_set.RData")
+```
+
+
+```{r, echo = FALSE, message = FALSE}
+library(tidyverse)
+library(censusapi)
+library(tidyverse)
+library(magrittr)
+library(ggmap)
+library(factoextra)
+library(lubridate)
+library(corrplot)
+```
+
+
+
+```{r, include = FALSE}
+setwd("/Users/sunyoon/Desktop/myrepo/")
+load("cleandata/arcos1314_set.RData")
+
+#clean up the names of the manufacturer/distributor.
+append_p1$REPORTER_NAME <- gsub(".", "", append_p1$REPORTER_NAME, fixed = T)
+append_p1$REPORTER_NAME <- gsub(",", "", append_p1$REPORTER_NAME)
+append_p1$REPORTER_NAME <- gsub("M W I", "MWI", append_p1$REPORTER_NAME)
+append_p1$REPORTER_NAME <- gsub("INC$", "", append_p1$REPORTER_NAME)
+append_p1$REPORTER_NAME <- gsub("CO$", "", append_p1$REPORTER_NAME)
+append_p1$REPORTER_NAME <- gsub("LLC$", "", append_p1$REPORTER_NAME)
+append_p1$REPORTER_NAME <- gsub("CO$", "", append_p1$REPORTER_NAME)
+append_p1$REPORTER_NAME <- gsub("CORP$", "", append_p1$REPORTER_NAME)
+```
+
+
+## Results 
+
+### Data Exploration
+
+Now that I have extracted 2013 and 2014 manufacturers and buyers information on opioid related drugs, I will explore what kind of information the data set has. First I will look into the reporter (manufacturer/distributor) side for both years.
+
+In 2013, the highest distributor was 	MWI Vet Supply Co, followed by Hawthorn Pharmaceuticals. In 2014, the highest distributor was Henry Schein Inc, followed by MWI Vet Supply Co. It seems like there should be more name cleaning. I've tried to eliminate stop words in the reporter_name variable. 
+
+```{r}
+append_p1 %>%
+  filter(REPORTER_BUS_ACT == "DISTRIBUTOR") %>%
+  group_by(year, REPORTER_BUS_ACT, REPORTER_NAME) %>%
+  count() %>%
+  arrange(year, desc(n))
+```
+
+Now that I have explored the distributor side, I will look at the manufacturing side. We can see that there are very few manufacturers than distributors. Top manufacturers of drugs are Bryant Ranch Prepack, Dispensing Solutions, and Lake Erie Medical in 2013, and Bryant Ranch Prepack, Lake Erie Medical, and PD-RX Pharmaceuticals in 2014. 
+
+```{r}
+append_p1 %>%
+  filter(REPORTER_BUS_ACT == "MANUFACTURER") %>%
+  group_by(year, REPORTER_BUS_ACT, REPORTER_NAME) %>%
+  count() %>%
+  arrange(year, desc(n))
+```
+
+I will look at which city/state has distributed and manufactured the most in 2014, together. We get that most distributed source is from Edwardsville, KS, followed by Columbus OH. Most manufactured areas are from Burbank, CA, followed by Holland, OH.
+
+```{r}
+append_p1 %>%
+  filter(year == "2014") %>%
+  group_by(REPORTER_CITY, REPORTER_STATE, REPORTER_BUS_ACT) %>%
+  count() %>%
+  arrange(REPORTER_BUS_ACT, desc(n))
+```
+
+Next step is to explore explore the purchasers' side. First I looked at which city/State practitioners most get Hydrocodone and Oxycodone from. Most ordered cities were from Los Angeles, CA, Phoenix, AZ, followed by Sacramento, CA. 
+
+```{r}
+append_p1 %>%
+  filter(year == "2014") %>%
+  group_by(BUYER_CITY,BUYER_STATE) %>%
+  count() %>%
+  arrange(desc(n))
+```
+
+To find out how much drugs were distributed over time, first I need to calculate the total morphine equivalent shipment. Reference as to how to calculate is from here:
+
+https://github.com/wpinvestigative/arcos-api/issues/1
+
+dos_str * DOSAGE_UNTS * MME_Conversion_Factor
+
+However, limitation exists in that this cannot provide the whole picture of drug shipment counts, since I am only observing the practitioner's (medical provider) side. 
+
+```{r, include = FALSE}
+# T = total tabs (Dosage_Unit), D = dosage strength (Dos_str)
+# and C = conversion factor (MME_Conversion_Factor)
+
+library(stringi)
+append_p1 %<>%
+  mutate(TDC=log(as.numeric(DOSAGE_UNIT)*as.numeric(dos_str)*as.numeric(MME_Conversion_Factor)),
+         date=stri_pad_left(TRANSACTION_DATE, pad="0", width = 8),
+         date2 = as.Date(format(mdy(date)))
+)
+```
+
+### Aanalysis
+#### Graphs 
+
+I want to see if there are any cyclical distribution of MME of drugs over time.
+In the graph, you can see that the mean MME is overall increasing. There is no particular cycle in the distribution of hydrocodone/oxycodone. 
+
+```{r}
+week <- append_p1 %>%
+  group_by(date2) %>%
+  summarise(mean_mme = mean(TDC, na.rm = T),
+            sum_mme = sum(TDC, na.rm = T))
+
+library(ggplot2)
+
+week %>% ggplot(aes(x = date2, y = mean_mme)) + 
+  geom_line(color = "pink") +
+  geom_point(color = "red", size=1) +
+  stat_smooth() +
+  labs(y = "Mean MME",
+       x = "Date") + 
+  theme_minimal()
+```
+
+I will explore where reporters and buyers were located throughout the United States in California in 2014. The reason I am only exploring California is that California had the most opioid distribution as shown above. 
+
+```{r}
+ca <- append_p1 %>%
+  filter(BUYER_STATE == "CA" & year == "2014")
+
+# ggplot(ca, aes(longitude_b, latitude_b), color = "grey99") +
+#   borders("state") + 
+#   geom_point(aes(color = TDC)) +
+#   scale_color_gradient(low = "blue", high = "orange") +
+#   theme_bw()
+
+# facet plots by category (facet wrap and grid)
+qmplot(longitude_b, latitude_b, data = ca, maptype = "toner-lite", size = I(0.5), alpha = I(0.45), color = TDC) + 
+  facet_wrap(~DRUG_NAME)
+
+```
+
+From the map above, the locations seem to be clustered around highly populated area. To ensure less bias, I will import California population data from `zipcodeR` package to do MME per capita analysis. The reason I chose to use this package over the Census API is that I can match zipcode related variables directly to the opioid distribution data. The following graph demonstrates the per capita MME in log form. 
+
+```{r, include = FALSE}
+library(zipcodeR)
+ca_zip <- search_fips("06")
+
+ca1 <- ca %>%
+  group_by(BUYER_ZIP) %>%
+  summarise(TDC = sum(TDC))
+
+ca1 <- left_join(ca1, ca_zip, by = c('BUYER_ZIP' = 'zipcode')) %>%
+  mutate(mme.percapita = log(TDC/population))
+
+```
+
+```{r}
+qmplot(lng, lat, data = ca1, maptype = "toner-lite", size = I(0.5), alpha = I(0.45), color = mme.percapita)
+```
+
+Seems like buyers are clustered in certain areas. `fviz_nbclust()` takes a very long time, so I won't use that function to find the optimal number of clusters. Instead, I will do 4 clusters. 
+
+```{r, results = F}
+
+ca_data <- ca %>%
+  select(longitude_b, latitude_b) %>%
+  na.omit()
+
+# fviz_nbclust(ca_data, #data set we want to use
+#              kmeans, #cluster method
+#              method = "wss", #method used for estimating the optimal number of clusters
+#              k.max = 10)
+
+km_1 <- kmeans(na.omit(ca_data), 5, nstart = 20)
+```
+
+Given the clusters, I will plot them 
+
+```{r, message=FALSE}
+
+ca_data %>%
+  na.omit() %>%
+  qmplot(longitude_b, latitude_b, data = ., maptype = "toner-lite", size = I(0.75), alpha = I(0.75), color = as.factor(km_1$cluster))
+  
+
+```
+
+Below I plot correlation pair graphs amongst MME, population, housing units, median home value, and median household income. While the graph cannot demonstrate the true relationship, interesting finding is that opioid distribution is more concentrated in the lower median household income areas.  
+
+```{r}
+sub <-
+  ca1 %>%
+  drop_na(.) %>%
+  select(TDC, population, housing_units, median_home_value, median_household_income) %T>%
+  pairs(.)
+```
+
+## Discussion
+
+The opioid epidemic has been a serious public health emergency, which has affected many citizens in the United States. In particular, clinicians prescribing opioid related pain killers have contributed to drug overdose. Thus, in this analysis, I have explored the opioid distribution data, from the practitioners' purchasing side of point. Top purchasing sites included many California cities, with Los Angeles being the top purchasing city, followed by Chicago, Illinois. When looking at the time trend of dispensing opioids, the mean opioid distribution has been increasing slightly from beginning of 2013 to the end of 2014. The correlation graph shows some interesting results. While we cannot conclude with certainty, lower median household income has more opioid distribution than higher median household income. 
+
+Limitations to this analysis include lack of recent data. The Washington Post was only able to produce data from 2009 to 2014, which may limit the full picture of the current opioid distribution status. Another limitation is that this analysis only explores basic descriptives. Further analysis may explain the phenomena of the opioid distribution. 
+
+
